@@ -107,16 +107,6 @@ resource "azurerm_lb_rule" "lbnatrule" {
    enable_tcp_reset               = "true"
 }
 
-#resource "azurerm_lb_nat_rule" "test" {
-#  resource_group_name            = azurerm_resource_group.test.name
-#  loadbalancer_id                = azurerm_lb.test.id
-#  name                           = "LBRule"
-#  protocol                       = "Tcp"
-#  frontend_port                  = 22
-#  backend_port                   = 22
-#  frontend_ip_configuration_name = "publicIPAddress"
-#}
-#
 resource "azurerm_network_interface_backend_address_pool_association" "test" {
   #count                   = 1
   network_interface_id    = azurerm_network_interface.test01.id
@@ -128,9 +118,8 @@ resource "azurerm_network_security_group" "test" {
   name                = "SecurityGroup01"
   location            = azurerm_resource_group.test.location
   resource_group_name = azurerm_resource_group.test.name
-}
 
-resource "azurerm_network_security_rule" "test" {
+  security_rule {
   name                        = "sg_rule_01"
   priority                    = 100
   direction                   = "Outbound"
@@ -142,9 +131,8 @@ resource "azurerm_network_security_rule" "test" {
   destination_address_prefix  = "*"
   resource_group_name         = azurerm_resource_group.test.name
   network_security_group_name = azurerm_network_security_group.test.name
-}
-
-resource "azurerm_network_security_rule" "test02" {
+  }
+  security_rule {
   name                        = "sg_rule_02"
   priority                    = 100
   direction                   = "Inbound"
@@ -156,7 +144,12 @@ resource "azurerm_network_security_rule" "test02" {
   destination_address_prefix  = "*"
   resource_group_name         = azurerm_resource_group.test.name
   network_security_group_name = azurerm_network_security_group.test.name
+  }
 }
+
+#resource "azurerm_network_security_rule" "test" 
+
+#resource "azurerm_network_security_rule" "test02" 
 
 resource "azurerm_subnet_network_security_group_association" "test" {
   subnet_id                 = azurerm_subnet.test.id
