@@ -33,3 +33,28 @@ variable "application_port_02" {
   type        = string
   default     = "80"
 }
+
+variable "scfile" {
+    type = string
+    default = "yum.bash"
+}
+
+variable "artifactory_version" {
+  description = "Artifactory version to deploy"
+  default     = "7.19.4"
+}
+
+variable "db_name" {
+  description = "MySQL database name"
+  default = "artdb"
+}
+
+variable "db_user" {
+  description = "Database user name"
+  default     = "artifactory"
+}
+
+variable "db_password" {
+  description = "Database password"
+  default     = "password"
+}

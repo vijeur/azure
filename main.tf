@@ -118,8 +118,9 @@ resource "azurerm_network_security_group" "test" {
   name                = "SecurityGroup01"
   location            = azurerm_resource_group.test.location
   resource_group_name = azurerm_resource_group.test.name
+}
 
-  security_rule {
+resource "azurerm_network_security_rule" "test"  {
   name                        = "sg_rule_01"
   priority                    = 100
   direction                   = "Outbound"
@@ -132,7 +133,8 @@ resource "azurerm_network_security_group" "test" {
   resource_group_name         = azurerm_resource_group.test.name
   network_security_group_name = azurerm_network_security_group.test.name
   }
-  security_rule {
+
+resource "azurerm_network_security_rule" "test02" {
   name                        = "sg_rule_02"
   priority                    = 100
   direction                   = "Inbound"
@@ -145,11 +147,6 @@ resource "azurerm_network_security_group" "test" {
   resource_group_name         = azurerm_resource_group.test.name
   network_security_group_name = azurerm_network_security_group.test.name
   }
-}
-
-#resource "azurerm_network_security_rule" "test" 
-
-#resource "azurerm_network_security_rule" "test02" 
 
 resource "azurerm_subnet_network_security_group_association" "test" {
   subnet_id                 = azurerm_subnet.test.id
@@ -176,7 +173,7 @@ resource "azurerm_availability_set" "avset" {
 }
 
 resource "azurerm_virtual_machine" "test" {
- count                 = 1
+ #count                 = 1
  name                  = var.vm01
  location              = azurerm_resource_group.test.location
  availability_set_id   = azurerm_availability_set.avset.id
@@ -225,7 +222,7 @@ resource "azurerm_virtual_machine" "test" {
    computer_name  = var.vm01
    admin_username = "testadmin"
    admin_password = "Password1234!"
-   custom_data    = file("azure-user-data.sh")
+   #custom_data    = file("azure-user-data.sh")
  }
 
  os_profile_linux_config {
@@ -235,6 +232,23 @@ resource "azurerm_virtual_machine" "test" {
  tags = {
    environment = "staging"
  }
+}
+
+resource "azurerm_virtual_machine_extension" "test" {
+    #resource_group_name     = azurerm_resource_group.test.name
+    #location                = azurerm_resource_group.test.location
+    name                    = "abc"
+    virtual_machine_id      = azurerm_virtual_machine.test.id
+    #virtual_machine_name = var.vm01
+    publisher            = "Microsoft.Azure.Extensions"
+    type                 = "CustomScript"
+    type_handler_version = "2.0"
+
+    protected_settings = <<PROT
+    {
+        "script": "${base64encode(file(var.scfile))}"
+    }
+    PROT
 }
 
 #resource "azurerm_postgresql_server" "test" {
