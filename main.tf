@@ -31,6 +31,9 @@ resource "azurerm_subnet" "test" {
  resource_group_name  = azurerm_resource_group.test.name
  virtual_network_name = azurerm_virtual_network.test.name
  address_prefix       = "10.0.2.0/24"
+ enforce_private_link_endpoint_network_policies = true
+ enforce_private_link_service_network_policies = true
+ service_endpoints    = ["Microsoft.Sql"]
 }
 
 #resource "azurerm_subnet" "subnet02" {
@@ -82,7 +85,8 @@ resource "azurerm_network_interface" "test01" {
  ip_configuration {
    name                          = "testConfiguration"
    subnet_id                     = azurerm_subnet.test.id
-   private_ip_address_allocation = "dynamic"
+   private_ip_address_allocation = "Dynamic"
+   #public_ip_address_id          = "10.0.2.7/24"
  }
 }
 
@@ -100,6 +104,20 @@ resource "azurerm_lb_rule" "lbnatrule" {
    protocol                       = "Tcp"
    frontend_port                  = var.application_port_01
    backend_port                   = var.application_port_01
+   backend_address_pool_id        = azurerm_lb_backend_address_pool.test.id
+   frontend_ip_configuration_name = "PublicIPAddress"
+   probe_id                       = azurerm_lb_probe.test.id
+   disable_outbound_snat          = "false"
+   enable_tcp_reset               = "true"
+}
+
+resource "azurerm_lb_rule" "lbhttprule" {
+   resource_group_name            = azurerm_resource_group.test.name
+   loadbalancer_id                = azurerm_lb.test.id
+   name                           = "http01"
+   protocol                       = "Tcp"
+   frontend_port                  = "80"
+   backend_port                   = "8082"
    backend_address_pool_id        = azurerm_lb_backend_address_pool.test.id
    frontend_ip_configuration_name = "PublicIPAddress"
    probe_id                       = azurerm_lb_probe.test.id
@@ -125,7 +143,7 @@ resource "azurerm_network_security_rule" "test"  {
   priority                    = 100
   direction                   = "Outbound"
   access                      = "Allow"
-  protocol                    = "Tcp"
+  protocol                    = "*"
   source_port_range           = "*"
   destination_port_range      = "*"
   source_address_prefix       = "*"
@@ -139,7 +157,7 @@ resource "azurerm_network_security_rule" "test02" {
   priority                    = 100
   direction                   = "Inbound"
   access                      = "Allow"
-  protocol                    = "Tcp"
+  protocol                    = "*"
   source_port_range           = "*"
   destination_port_range      = "*"
   source_address_prefix       = "*"
@@ -188,9 +206,9 @@ resource "azurerm_virtual_machine" "test" {
  delete_data_disks_on_termination = true
 
  storage_image_reference {
-   publisher = "OpenLogic"
-   offer     = "CentOS"
-   sku       = "7.5"
+   publisher = "Canonical"
+   offer     = "UbuntuServer"
+   sku       = "16.04-LTS"
    version   = "latest"
  }
 
@@ -223,10 +241,23 @@ resource "azurerm_virtual_machine" "test" {
    admin_username = "testadmin"
    admin_password = "Password1234!"
    #custom_data    = file("azure-user-data.sh")
+   custom_data    = <<-EOF
+          #!/bin/bash
+          
+          echo "export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64" >> /etc/environment
+          echo "export JFROG_HOME=/opt/jfrog" >> /etc/environment
+          #apt install postgresql-client-9.5 -y
+          
+          EOF
+  
  }
 
  os_profile_linux_config {
-   disable_password_authentication = false
+   disable_password_authentication = true
+   ssh_keys {
+   key_data = file("~/.ssh/id_rsa.pub")
+   path = "/home/testadmin/.ssh/authorized_keys"
+   }
  }
 
  tags = {
@@ -251,23 +282,61 @@ resource "azurerm_virtual_machine_extension" "test" {
     PROT
 }
 
-#resource "azurerm_postgresql_server" "test" {
-#  name                = "test-psqlserver"
-#  location            = azurerm_resource_group.test.location
+resource "azurerm_postgresql_server" "test" {
+  name                = "test-psqlserver"
+  location            = azurerm_resource_group.test.location
+  resource_group_name = azurerm_resource_group.test.name
+
+  administrator_login          = "psqladminun"
+  administrator_login_password = "H@Sh1CoR3!"
+
+  sku_name   = "GP_Gen5_4"
+  version    = "9.6"
+  storage_mb = 10240
+
+  backup_retention_days        = 7
+  geo_redundant_backup_enabled = true
+  auto_grow_enabled            = true
+
+  public_network_access_enabled    = true
+  ssl_enforcement_enabled          = true
+  ssl_minimal_tls_version_enforced = "TLS1_2"
+}
+
+#resource "azurerm_postgresql_database" "test" {
+#  name                = "postgres"
 #  resource_group_name = azurerm_resource_group.test.name
-#
-#  administrator_login          = "psqladminun"
-#  administrator_login_password = "H@Sh1CoR3!"
-#
-#  sku_name   = "GP_Gen5_4"
-#  version    = "9.6"
-#  storage_mb = 10240
-#
-#  backup_retention_days        = 7
-#  geo_redundant_backup_enabled = true
-#  auto_grow_enabled            = true
-#
-#  public_network_access_enabled    = false
-#  ssl_enforcement_enabled          = true
-#  ssl_minimal_tls_version_enforced = "TLS1_2"
+#  server_name         = azurerm_postgresql_server.test.name
+#  charset             = "UTF8"
+#  collation           = "en-US"
 #}
+
+resource "azurerm_private_endpoint" "test" {
+  name                = "psql-endpoint"
+  location            = azurerm_resource_group.test.location
+  resource_group_name = azurerm_resource_group.test.name
+  subnet_id           = azurerm_subnet.test.id
+
+  private_service_connection {
+    name                           = "privateserviceconnection"
+    private_connection_resource_id = azurerm_postgresql_server.test.id
+    subresource_names              = [ "postgresqlServer" ]
+    is_manual_connection           = false
+  }
+}
+
+#resource "azurerm_postgresql_firewall_rule" "test" {
+#  name                = "office"
+#  resource_group_name = azurerm_resource_group.test.name
+#  server_name         = azurerm_postgresql_server.test.name
+#  start_ip_address    = "0.0.0.0"
+#  end_ip_address      = "0.0.0.0"
+#}
+
+resource "azurerm_postgresql_virtual_network_rule" "test" {
+  name                                 = "postgresql-vnet-rule"
+  resource_group_name                  = azurerm_resource_group.test.name
+  server_name                          = azurerm_postgresql_server.test.name
+  subnet_id                            = azurerm_subnet.test.id
+  ignore_missing_vnet_service_endpoint = true
+}
