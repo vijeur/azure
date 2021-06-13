@@ -5,36 +5,78 @@ variable "location" {
 }
 
 variable "resource_group_name" {
-  description = "(Required) The name of the resource group where the load balancer resources will be imported."
+  description = "(Required) The name of the resource group where all the resources will be imported."
   type        = string
   default     = "jfrog"
 }
 
-variable "vm01" {
-  description = "Name of the VM01"
+variable "platform" {
+  description = "The name of the platform where resources will be imported."
   type        = string
-  default     = "jfrogapp01"
+  default     = "az"
 }
 
-variable "vm02" {
-  description = "Name of the VM02"
+variable "environment" {
+  description = "The name of the environment with resources will be created."
   type        = string
-  default     = "jfrogapp02"
+  default     = "dev"
 }
 
-variable "application_port_01" {
+variable "owner" {
+  description = "The name of the owner (co. name)with resources will be created."
+  type        = string
+  default     = "microsoft"
+}
+
+##variables for virtual machines, not using now
+#variable "vm01" {
+#  description = "Name of the VM01"
+#  type        = string
+#  default     = "jfrogapp01"
+#}
+#
+#variable "vm02" {
+#  description = "Name of the VM02"
+#  type        = string
+#  default     = "jfrogapp02"
+#}
+##variables for load balancer
+variable "lb_front_01" {
   description = "Portof the VM02"
   type        = string
   default     = "22"
 }
 
-variable "application_port_02" {
-  description = "Name of the VM02"
+variable "lb_front_02" {
+  description = "port allow for LB"
+  type        = string
+  default     = "80"
+}
+
+variable "lb_backnd_03" {
+  description = "port allow for LB"
+  type        = string
+  default     = "443"
+}
+
+variable "lb_front_03" {
+  description = "port allow for LB"
+  type        = string
+  default     = "443"
+}
+
+variable "lb_backnd_02" {
+  description = "port allow for LB"
   type        = string
   default     = "80"
 }
 
 variable "scfile" {
+    type = string
+    default = "yum.bash"
+}
+
+variable "scriptfile" {
     type = string
     default = "yum.bash"
 }

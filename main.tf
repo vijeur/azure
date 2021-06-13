@@ -1,4 +1,7 @@
+########################################################################################
 # Configure the Azure provider
+########################################################################################
+
 terraform {
   required_providers {
     azurerm = {
@@ -15,51 +18,57 @@ provider "azurerm" {
 }
 
 resource "azurerm_resource_group" "test" {
- name     = var.resource_group_name
+ name     = "${var.platform}-${var.environment}-resource-01"
  location = var.location
 }
 
+########################################################################################
+# Configure the networks
+########################################################################################
+
 resource "azurerm_virtual_network" "test" {
- name                = "acctvn"
+ name                = "${var.platform}-${var.environment}-vir-net-01"
  address_space       = ["10.0.0.0/16"]
  location            = azurerm_resource_group.test.location
  resource_group_name = azurerm_resource_group.test.name
+
+  tags = {
+    Name = "${var.platform}_${var.environment}_vitual_net"
+    Platform = "${var.platform}"
+    Owner = "${var.owner}"
+    Environment = "${var.environment}"
+  }
+
 }
 
 resource "azurerm_subnet" "test" {
- name                 = "acctsub"
+ name                 = "${var.platform}-${var.environment}-subnet-01"
  resource_group_name  = azurerm_resource_group.test.name
  virtual_network_name = azurerm_virtual_network.test.name
- address_prefix       = "10.0.2.0/24"
+ address_prefixes       = ["10.0.2.0/24"]
  enforce_private_link_endpoint_network_policies = true
  enforce_private_link_service_network_policies = true
  service_endpoints    = ["Microsoft.Sql"]
 }
 
-#resource "azurerm_subnet" "subnet02" {
-# name                 = "subnet02"
-# resource_group_name  = azurerm_resource_group.test.name
-# virtual_network_name = azurerm_virtual_network.test.name
-# address_prefix       = "10.0.3.0/24"
-#}
-
-#resource "azurerm_subnet" "subnet03" {
-# name                 = "subnet03"
-# resource_group_name  = azurerm_resource_group.test.name
-# virtual_network_name = azurerm_virtual_network.test.name
-# address_prefix       = "10.0.4.0/24"
-#}
+########################################################################################
+# Create a Public IP for LB
+########################################################################################
 
 resource "azurerm_public_ip" "test" {
- name                         = "PublicIPForLB"
+ name                         = "${var.platform}-${var.environment}-pub-ip-01"
  location                     = azurerm_resource_group.test.location
  resource_group_name          = azurerm_resource_group.test.name
  sku                          = "Standard"
  allocation_method            = "Static"
 }
 
+########################################################################################
+# Create a Load Balancer
+########################################################################################
+
 resource "azurerm_lb" "test" {
- name                = "loadBalancer"
+ name                = "${var.platform}-${var.environment}-lb-01"
  location            = azurerm_resource_group.test.location
  resource_group_name = azurerm_resource_group.test.name
  sku                 = "Standard"
@@ -71,39 +80,25 @@ resource "azurerm_lb" "test" {
 }
 
 resource "azurerm_lb_backend_address_pool" "test" {
- resource_group_name = azurerm_resource_group.test.name
+ #resource_group_name = azurerm_resource_group.test.name
  loadbalancer_id     = azurerm_lb.test.id
- name                = "BackEndAddressPool"
-}
-
-resource "azurerm_network_interface" "test01" {
- #count               = 3
- name                = "backend_address01"
- location            = azurerm_resource_group.test.location
- resource_group_name = azurerm_resource_group.test.name
-
- ip_configuration {
-   name                          = "testConfiguration"
-   subnet_id                     = azurerm_subnet.test.id
-   private_ip_address_allocation = "Dynamic"
-   #public_ip_address_id          = "10.0.2.7/24"
- }
+ name                = "${var.platform}-${var.environment}-back-pool-01"
 }
 
 resource "azurerm_lb_probe" "test" {
  resource_group_name = azurerm_resource_group.test.name
  loadbalancer_id     = azurerm_lb.test.id
- name                = "ssh-running-probe"
- port                = var.application_port_01
+ name                = "${var.platform}-${var.environment}-lb-probe-01"
+ port                = var.lb_front_01
 }
 
-resource "azurerm_lb_rule" "lbnatrule" {
+resource "azurerm_lb_rule" "lbsshrule" {
    resource_group_name            = azurerm_resource_group.test.name
    loadbalancer_id                = azurerm_lb.test.id
-   name                           = "http"
+   name                           = "${var.platform}-${var.environment}-lb-rule-01"
    protocol                       = "Tcp"
-   frontend_port                  = var.application_port_01
-   backend_port                   = var.application_port_01
+   frontend_port                  = var.lb_front_01
+   backend_port                   = var.lb_front_01
    backend_address_pool_id        = azurerm_lb_backend_address_pool.test.id
    frontend_ip_configuration_name = "PublicIPAddress"
    probe_id                       = azurerm_lb_probe.test.id
@@ -114,10 +109,10 @@ resource "azurerm_lb_rule" "lbnatrule" {
 resource "azurerm_lb_rule" "lbhttprule" {
    resource_group_name            = azurerm_resource_group.test.name
    loadbalancer_id                = azurerm_lb.test.id
-   name                           = "http01"
+   name                           = "${var.platform}-${var.environment}-lb-rule-02"
    protocol                       = "Tcp"
-   frontend_port                  = "80"
-   backend_port                   = "8082"
+   frontend_port                  = var.lb_front_02
+   backend_port                   = var.lb_backnd_02
    backend_address_pool_id        = azurerm_lb_backend_address_pool.test.id
    frontend_ip_configuration_name = "PublicIPAddress"
    probe_id                       = azurerm_lb_probe.test.id
@@ -125,21 +120,39 @@ resource "azurerm_lb_rule" "lbhttprule" {
    enable_tcp_reset               = "true"
 }
 
-resource "azurerm_network_interface_backend_address_pool_association" "test" {
+resource "azurerm_lb_rule" "lbhttprule03" {
+   resource_group_name            = azurerm_resource_group.test.name
+   loadbalancer_id                = azurerm_lb.test.id
+   name                           = "${var.platform}-${var.environment}-lb-rule-03"
+   protocol                       = "Tcp"
+   frontend_port                  = var.lb_front_03
+   backend_port                   = var.lb_backnd_03
+   backend_address_pool_id        = azurerm_lb_backend_address_pool.test.id
+   frontend_ip_configuration_name = "PublicIPAddress"
+   probe_id                       = azurerm_lb_probe.test.id
+   disable_outbound_snat          = "false"
+   enable_tcp_reset               = "true"
+}
+
+resource "azurerm_network_interface_backend_address_pool_association" "test01" {
   #count                   = 1
   network_interface_id    = azurerm_network_interface.test01.id
-  ip_configuration_name   = "testConfiguration"
+  ip_configuration_name   = "testConfiguration01"
   backend_address_pool_id = azurerm_lb_backend_address_pool.test.id
 }
 
+########################################################################################
+# Create a security group and rules
+########################################################################################
+
 resource "azurerm_network_security_group" "test" {
-  name                = "SecurityGroup01"
+  name                = "${var.platform}-${var.environment}-sg-01"
   location            = azurerm_resource_group.test.location
   resource_group_name = azurerm_resource_group.test.name
 }
 
 resource "azurerm_network_security_rule" "test"  {
-  name                        = "sg_rule_01"
+  name                        = "${var.platform}-${var.environment}-sg-rule-01"
   priority                    = 100
   direction                   = "Outbound"
   access                      = "Allow"
@@ -153,7 +166,7 @@ resource "azurerm_network_security_rule" "test"  {
   }
 
 resource "azurerm_network_security_rule" "test02" {
-  name                        = "sg_rule_02"
+  name                        = "${var.platform}-${var.environment}-sg-rule-02"
   priority                    = 100
   direction                   = "Inbound"
   access                      = "Allow"
@@ -171,172 +184,25 @@ resource "azurerm_subnet_network_security_group_association" "test" {
   network_security_group_id = azurerm_network_security_group.test.id
 }
 
-resource "azurerm_managed_disk" "test" {
- #count                = 1
- name                 = "datadisk_artifacts"
- location             = azurerm_resource_group.test.location
- resource_group_name  = azurerm_resource_group.test.name
- storage_account_type = "Standard_LRS"
- create_option        = "Empty"
- disk_size_gb         = "11"
-}
+########################################################################################
+# Create an availability set
+########################################################################################
 
 resource "azurerm_availability_set" "avset" {
- name                         = "avset"
+ name                         = "${var.platform}-${var.environment}-av-set-01"
  location                     = azurerm_resource_group.test.location
  resource_group_name          = azurerm_resource_group.test.name
- platform_fault_domain_count  = 3
- platform_update_domain_count = 3
+ platform_fault_domain_count  = 1
+ platform_update_domain_count = 1
  managed                      = true
 }
 
-resource "azurerm_virtual_machine" "test" {
- #count                 = 1
- name                  = var.vm01
- location              = azurerm_resource_group.test.location
- availability_set_id   = azurerm_availability_set.avset.id
- resource_group_name   = azurerm_resource_group.test.name
- network_interface_ids = [azurerm_network_interface.test01.id]
- vm_size               = "Standard_DS1_v2"
-
- # Uncomment this line to delete the OS disk automatically when deleting the VM
- delete_os_disk_on_termination = true
-
- # Uncomment this line to delete the data disks automatically when deleting the VM
- delete_data_disks_on_termination = true
-
- storage_image_reference {
-   publisher = "Canonical"
-   offer     = "UbuntuServer"
-   sku       = "16.04-LTS"
-   version   = "latest"
- }
-
- storage_os_disk {
-   name              = "myosdisk01"
-   caching           = "ReadWrite"
-   create_option     = "FromImage"
-   managed_disk_type = "Standard_LRS"
- }
-
- # Optional data disks
- storage_data_disk {
-   name              = "datadisk_new_01"
-   managed_disk_type = "Standard_LRS"
-   create_option     = "Empty"
-   lun               = 0
-   disk_size_gb      = "20"
- }
-
- storage_data_disk {
-   name            = azurerm_managed_disk.test.name
-   managed_disk_id = azurerm_managed_disk.test.id
-   create_option   = "Attach"
-   lun             = 1
-   disk_size_gb    = azurerm_managed_disk.test.disk_size_gb
- }
-
- os_profile {
-   computer_name  = var.vm01
-   admin_username = "testadmin"
-   admin_password = "Password1234!"
-   #custom_data    = file("azure-user-data.sh")
-   custom_data    = <<-EOF
-          #!/bin/bash
-          
-          echo "export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64" >> /etc/environment
-          echo "export JFROG_HOME=/opt/jfrog" >> /etc/environment
-          #apt install postgresql-client-9.5 -y
-          
-          EOF
-  
- }
-
- os_profile_linux_config {
-   disable_password_authentication = true
-   ssh_keys {
-   key_data = file("~/.ssh/id_rsa.pub")
-   path = "/home/testadmin/.ssh/authorized_keys"
-   }
- }
-
- tags = {
-   environment = "staging"
- }
-}
-
-resource "azurerm_virtual_machine_extension" "test" {
-    #resource_group_name     = azurerm_resource_group.test.name
-    #location                = azurerm_resource_group.test.location
-    name                    = "abc"
-    virtual_machine_id      = azurerm_virtual_machine.test.id
-    #virtual_machine_name = var.vm01
-    publisher            = "Microsoft.Azure.Extensions"
-    type                 = "CustomScript"
-    type_handler_version = "2.0"
-
-    protected_settings = <<PROT
+# generate inventory file for Ansible
+resource "local_file" "hosts_cfg" {
+  content = templatefile("${path.module}/hosts.tpl",
     {
-        "script": "${base64encode(file(var.scfile))}"
+      test_clients = azurerm_public_ip.test.*.ip_address
     }
-    PROT
-}
-
-resource "azurerm_postgresql_server" "test" {
-  name                = "test-psqlserver"
-  location            = azurerm_resource_group.test.location
-  resource_group_name = azurerm_resource_group.test.name
-
-  administrator_login          = "psqladminun"
-  administrator_login_password = "H@Sh1CoR3!"
-
-  sku_name   = "GP_Gen5_4"
-  version    = "9.6"
-  storage_mb = 10240
-
-  backup_retention_days        = 7
-  geo_redundant_backup_enabled = true
-  auto_grow_enabled            = true
-
-  public_network_access_enabled    = true
-  ssl_enforcement_enabled          = true
-  ssl_minimal_tls_version_enforced = "TLS1_2"
-}
-
-#resource "azurerm_postgresql_database" "test" {
-#  name                = "postgres"
-#  resource_group_name = azurerm_resource_group.test.name
-#  server_name         = azurerm_postgresql_server.test.name
-#  charset             = "UTF8"
-#  collation           = "en-US"
-#}
-
-resource "azurerm_private_endpoint" "test" {
-  name                = "psql-endpoint"
-  location            = azurerm_resource_group.test.location
-  resource_group_name = azurerm_resource_group.test.name
-  subnet_id           = azurerm_subnet.test.id
-
-  private_service_connection {
-    name                           = "privateserviceconnection"
-    private_connection_resource_id = azurerm_postgresql_server.test.id
-    subresource_names              = [ "postgresqlServer" ]
-    is_manual_connection           = false
-  }
-}
-
-#resource "azurerm_postgresql_firewall_rule" "test" {
-#  name                = "office"
-#  resource_group_name = azurerm_resource_group.test.name
-#  server_name         = azurerm_postgresql_server.test.name
-#  start_ip_address    = "0.0.0.0"
-#  end_ip_address      = "0.0.0.0"
-#}
-
-resource "azurerm_postgresql_virtual_network_rule" "test" {
-  name                                 = "postgresql-vnet-rule"
-  resource_group_name                  = azurerm_resource_group.test.name
-  server_name                          = azurerm_postgresql_server.test.name
-  subnet_id                            = azurerm_subnet.test.id
-  ignore_missing_vnet_service_endpoint = true
+  )
+  filename = "./hosts.cfg"
 }

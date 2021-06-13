@@ -1,0 +1,96 @@
+---
+# tasks file for artifactory
+
+- name: Ensure group "nginx" exists
+  group:
+    name: nginx
+    state: present
+  
+- name: Add the user nginx
+  user:
+    name: nginx
+    shell: /bin/nologin
+    groups: nginx
+
+- name: Install nginx
+  apt: 
+    name: nginx 
+    state: present
+
+- name: create directory
+  file:
+    path: /etc/nginx/ssl
+    state: directory
+    mode: 0755
+    owner: nginx
+    group: nginx
+
+- name: copy ssl cert
+  copy:
+    src: files/testartifacorty.com.crt
+    dest: /etc/nginx/ssl/testartifacorty.com.crt
+    owner: nginx
+    group: nginx
+    mode: 0644
+
+- name: copy ssl key
+  copy:
+    src: files/testartifacorty.com.key
+    dest: /etc/nginx/ssl/testartifacorty.com.key
+    owner: nginx
+    group: nginx
+    mode: 0644
+
+- name: Nginx sites-available files
+  template:
+    src: "templates/nginx.conf.j2"
+    dest: "/etc/nginx/conf.d/nginx.conf"
+    owner: nginx
+    group: nginx
+    mode: 0644
+
+- name: Remove default file
+  file:
+   path: '/etc/nginx/sites-enabled/default'
+   state: absent
+
+- name: Creates logs directory
+  file: 
+    path: /var/log/nginx 
+    state: directory 
+    owner: www-data 
+    group: www-data 
+    mode: '0755'
+
+- name: check if rules file exists
+  stat: 
+    path: /var/log/nginx/access.log
+  register: nginx_access
+
+- name: check if rules file exists
+  stat: 
+    path: /var/log/nginx/error.log
+  register: nginx_error
+
+- name: Creates nginx acess log file
+  file: 
+    path: /var/log/nginx/access.log
+    state: directory 
+    owner: www-data 
+    group: www-data 
+    mode: '0755'
+  when: nginx_access.stat.exists == False
+
+- name: Creates nginx error log file
+  file: 
+    path: /var/log/nginx/error.log
+    state: directory 
+    owner: www-data 
+    group: www-data
+    mode: '0755'
+  when: nginx_error.stat.exists == False
+
+- name: restart nginx
+  service:
+    name: nginx
+    state: restarted
